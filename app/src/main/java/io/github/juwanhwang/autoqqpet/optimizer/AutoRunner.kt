@@ -727,11 +727,18 @@ class AutoRunner(
             OptimalPlanner.ActKind.FEED -> Kind.FEED
             OptimalPlanner.ActKind.BATH -> Kind.BATH
         }
-        // 求解器按“即时补给”建模（计划里补给已折进各动作）；真开工时体力/清洁不够，先走一趟照顾，下一轮重解接着排
+        // 求解器按“即时补给”建模（计划里补给已折进各动作）；真开工时体力/清洁不够，先走一趟照顾，下一轮重解接着排。
+        // 认条目要 sub 优先、名字兜底：冒险的 subEventType 真机恒为 0，只按 sub 找会拿第一条冒险的成本顶包，
+        // 于是“该不该先喂/先洗”判到别的一趟头上（2026-11-24 修）。
+        fun <T> pickBySubOrName(sub: Long, name: String, list: List<T>, subOf: (T) -> Long, nameOf: (T) -> String): T? =
+            (if (sub > 0) list.firstOrNull { subOf(it) == sub } else null) ?: list.firstOrNull { nameOf(it) == name }
         val costs = when (first.kind) {
-            OptimalPlanner.ActKind.STUDY -> snap.courses.firstOrNull { it.subEventType == first.sub }?.let { it.staminaCost to it.cleanCost }
-            OptimalPlanner.ActKind.WORK -> snap.jobs.firstOrNull { it.subEventType == first.sub }?.let { it.staminaCost to it.cleanCost }
-            OptimalPlanner.ActKind.ADVENTURE -> snap.adventures.firstOrNull { it.subEventType == first.sub }?.let { it.staminaCost to it.cleanCost }
+            OptimalPlanner.ActKind.STUDY ->
+                pickBySubOrName(first.sub, first.name, snap.courses, { it.subEventType }, { it.name })?.let { it.staminaCost to it.cleanCost }
+            OptimalPlanner.ActKind.WORK ->
+                pickBySubOrName(first.sub, first.name, snap.jobs, { it.subEventType }, { it.name })?.let { it.staminaCost to it.cleanCost }
+            OptimalPlanner.ActKind.ADVENTURE ->
+                pickBySubOrName(first.sub, first.name, snap.adventures, { it.subEventType }, { it.name })?.let { it.staminaCost to it.cleanCost }
             else -> null
         }
         if (costs != null && snap.stamina < costs.first)

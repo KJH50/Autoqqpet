@@ -121,6 +121,7 @@ class DayPlanner(
     val learnedTripMinutes: Map<String, Double> = emptyMap(),
 ) {
 
+    /** 一趟动作的补给成本（等效属性）：体力/清洁按单价折算成属性。 */
     private fun costOf(stamina: Int, clean: Int): Double = stamina * staminaWeight + clean * cleanWeight
 
     /**
@@ -130,17 +131,24 @@ class DayPlanner(
      */
 
     // ---- rate 公式集中在这里（真实决策与 dry-run 打印共用，避免两处算法漂移）----
+    //
+    // 单位口径（2026-11-24 修）：成本是“每趟”的绝对量（等效属性），rate 是“每小时”，
+    // 所以必须先把每趟成本从每趟收益里减掉、再折算到小时，不能拿“每趟成本”直接减“每小时收益”。
+    // 旧写法对长任务罚得过多（600 分钟课罚 10 倍）、对短任务罚得过少，同样的时间收益密度
+    // 会因为时长不同算出不同 rate，把 45 秒短工/短冒险抬到长课前面。
 
-    /** 单课：目标属性直接产出（等效属性/小时），再扣体力/清洁。 */
+    /** 单课：目标属性直接产出（等效属性/小时），按每趟净收益折算。 */
     fun courseRate(c: CourseInfo, factor: Double = 1.0): Double =
-        if (c.durationMin <= 0) 0.0 else c.attrGain * factor * 60.0 / c.durationMin - costOf(c.staminaCost, c.cleanCost)
+        if (c.durationMin <= 0) 0.0
+        else (c.attrGain * factor - costOf(c.staminaCost, c.cleanCost)) * 60.0 / c.durationMin
 
     /** 打工的已知价值：金币（仅当目录真回了“金币N”）+ 工分折算。 */
     fun jobValue(j: JobInfo): Double =
         (if (j.incomeKnown) j.income / goldPerAttr else 0.0) + j.points * pointsValue
 
     fun jobRate(j: JobInfo, factor: Double = 1.0): Double =
-        if (j.durationMin <= 0) 0.0 else jobValue(j) * factor * 60.0 / j.durationMin - costOf(j.staminaCost, j.cleanCost)
+        if (j.durationMin <= 0) 0.0
+        else (jobValue(j) * factor - costOf(j.staminaCost, j.cleanCost)) * 60.0 / j.durationMin
 
     /**
      * 冒险价值：冒险奖励不固定（目录常写“属性+0/点0”，实际结算仍会给东西），所以**永远不按 0 价值处理**：
@@ -161,7 +169,8 @@ class DayPlanner(
     fun adventureRate(a: AdventureInfo): Double {
         val nominal = if (a.durationSec > 0) a.durationSec / 60.0 else a.durationMin.toDouble()
         val minutes = learnedTripMinutes[a.name]?.takeIf { it > 0 } ?: nominal
-        return if (minutes <= 0.0) 0.0 else adventureValue(a) * 60.0 / minutes - costOf(a.staminaCost, a.cleanCost)
+        return if (minutes <= 0.0) 0.0
+        else (adventureValue(a) - costOf(a.staminaCost, a.cleanCost)) * 60.0 / minutes
     }
 
     /**

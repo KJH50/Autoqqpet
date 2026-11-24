@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -16,6 +15,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.content.ContextCompat
 import io.github.juwanhwang.autoqqpet.EnabledState
 import io.github.juwanhwang.autoqqpet.ModulePrefs
 import io.github.juwanhwang.autoqqpet.keepalive.KeepAliveService
@@ -103,18 +103,16 @@ class LiveState(context: Context) {
     fun start() {
         if (started) return
         started = true
-        val exported = if (Build.VERSION.SDK_INT >= 33) Context.RECEIVER_EXPORTED else 0
-        val local = if (Build.VERSION.SDK_INT >= 33) Context.RECEIVER_NOT_EXPORTED else 0
+        // 运行时注册的接收器一律走 ContextCompat.registerReceiver：Android 14（targetSdk 34）要求
+        // 非系统广播必须显式声明导出状态，旧写法按 SDK 版本分叉既啰嗦又容易漏（lint 也会报错）。
         runCatching {
             // 发送方是 QQ（另一个应用），必须声明导出
             val f = IntentFilter().apply { addAction(ACTION_STATUS); addAction(JobCatalog.ACTION); addAction(AdSweepState.ACTION) }
-            if (Build.VERSION.SDK_INT >= 33) ctx.registerReceiver(statusReceiver, f, exported)
-            else ctx.registerReceiver(statusReceiver, f)
+            ContextCompat.registerReceiver(ctx, statusReceiver, f, ContextCompat.RECEIVER_EXPORTED)
         }
         runCatching {
             val f = IntentFilter(KeepAliveService.ACTION_REFRESH)
-            if (Build.VERSION.SDK_INT >= 33) ctx.registerReceiver(refreshReceiver, f, local)
-            else ctx.registerReceiver(refreshReceiver, f)
+            ContextCompat.registerReceiver(ctx, refreshReceiver, f, ContextCompat.RECEIVER_NOT_EXPORTED)
         }
         backend.prefs.registerOnSharedPreferenceChangeListener(prefsListener)
         Store.prefs(ctx).registerOnSharedPreferenceChangeListener(prefsListener)

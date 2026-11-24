@@ -704,7 +704,9 @@ class AutoRunner(
         // 金币优先·冒险先行（2026-10-31 用户定）：冒险金币池是当天的、过期作废，打工随时能做——
         // 池子没见底（只认连续 30 趟无金币的到顶判定，估算池深不算）之前先派冒险，见底后整天
         // 回到求解器比价。挑哪趟冒险用求解器同一套数（期望金币/真实周期＝时薪最高者）。
-        if (config.autoGoal == AutoGoal.GOLD && !snap.advGoldCapped) {
+        // 「每天最多冒险几次」这一挡在这里也要放行一次才派（2026-11-24 审核修：本分支原先只判金币到顶，
+        // 把设置里的每日次数上限整条绕过了；次数到 0 就走下面的求解器，那边同样不含冒险）。
+        if (config.autoGoal == AutoGoal.GOLD && !snap.advGoldCapped && snap.adventureLeft > 0) {
             val adv = input.adventures.maxByOrNull { it.evGold / it.cycleMin }
             if (adv != null) {
                 if (snap.stamina < adv.staminaCost)
@@ -758,7 +760,10 @@ class AutoRunner(
     private fun solverInput(snap: Snapshot): OptimalPlanner.Input {
         val lt = java.time.LocalTime.now()
         val capEst = daily.advCapObserved().takeIf { it > 0 } ?: 5375
-        val advs = snap.adventures.filter { it.canDo }.mapNotNull { a ->
+        // 每日冒险次数上限（设置 adv_max）：到 0 就不再给求解器冒险候选。求解器本身不建这个约束
+        // （它只认金币池），而执行层每轮只走计划第一步、每次派出会让 advLeft 递减，所以这里只要在
+        // 「已用完」时把候选清空，就不会超过上限（2026-11-24 审核修：最优调度原先完全忽略这个设置）。
+        val advs = if (snap.adventureLeft <= 0) emptyList() else snap.adventures.filter { it.canDo }.mapNotNull { a ->
             // 期望来源：今天活池样本的学习均值（为正才用，≤0 按未判——见 DailyStore.adventureEvGold）
             // → 昨天活池实收（种子）→ 目录值；都没有就不进计划
             val ev = daily.adventureEvGold(a.durationMin) ?: if (a.incomeKnown) a.income.toDouble() else null

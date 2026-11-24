@@ -1,9 +1,11 @@
 package io.github.juwanhwang.autoqqpet.ui
 
+import android.annotation.SuppressLint
 import android.graphics.Color as AColor
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ContentTransform
@@ -26,7 +28,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import io.github.juwanhwang.autoqqpet.ui.data.LiveState
 import io.github.juwanhwang.autoqqpet.ui.screens.AdSweepScreen
 import io.github.juwanhwang.autoqqpet.ui.screens.AboutScreen
@@ -68,7 +69,11 @@ class Navigator {
 
 /**
  * 根：先过合规闸（免费与风险声明 → 协议读到底才可同意；协议文本一变就重新确认），再进主界面。
+ *
+ * 源码公开版停用了协议确认页，`AnimatedContent` 的 targetState（`agreed`）暂时不被 lambda 使用，
+ * 这是有意保留的（原拦截逻辑以注释形式留在下面，要恢复只取消注释即可），故在此抑制对应 lint 检查。
  */
+@SuppressLint("UnusedContentLambdaTargetStateParameter")
 @Composable
 fun AevumApp(live: LiveState, navigator: Navigator, gate: AgreementGate, onExit: () -> Unit) {
     AevumTheme {
@@ -168,7 +173,9 @@ private fun routeTransition(forward: Boolean, reduced: Boolean): ContentTransfor
 /** 状态栏/导航栏图标颜色跟随应用内主题（而不是系统主题）。 */
 @Composable
 private fun SystemBarsEffect() {
-    val activity = LocalContext.current as? ComponentActivity ?: return
+    // 用 LocalActivity 而不是把 LocalContext 强转 Activity：Context 不保证是 Activity（Compose 会报 lint 错误，
+    // 预览/多窗口下也确实可能拿到不是 ComponentActivity 的 Context）。
+    val activity = LocalActivity.current as? ComponentActivity ?: return
     val dark = Aevum.colors.isDark
     LaunchedEffect(dark) {
         val style = if (dark) SystemBarStyle.dark(AColor.TRANSPARENT)

@@ -29,11 +29,18 @@
 | [CONTRACT.md](CONTRACT.md) | 设置项契约（键名、默认值、哪一侧读写） |
 | [game-economy-model.md](game-economy-model.md) | 游戏经济模型 |
 | [study-work-optimizer.md](study-work-optimizer.md) | 学习/打工最优调度 |
+| [issue-algo-review.md](issue-algo-review.md) | 公开仓 issue 里的算法意见：现状核对、已修问题与新功能整理 |
+| [code-review-2026-11.md](code-review-2026-11.md) | 2026-11 代码审核报告：已修 4 项、7 条观察、P2 清单核对 |
 | [design/DESIGN.md](design/DESIGN.md) | 界面设计规范 |
 
 ## 开发与构建
 
 - 环境：JDK 17+（CI 用 21）、Android SDK（compileSdk 37）。不需要 NDK。
+- Windows：直接用仓库根的 `gradlew.bat`（由 `gradle/wrapper/gradle-wrapper.jar` 引导，无需另装 Gradle）。
+  仓库放在**中文路径**下时，`gradle.properties` 里的 `android.overridePathCheck=true` 与
+  `org.gradle.jvmargs=… -Dfile.encoding=COMPAT` 不要删：JDK 18+ 默认 UTF-8，而 Windows 的 JDK 启动器按
+  系统原生编码（简体中文 = GBK）读测试 worker 的 `@argfile`，两边不一致会让单测报
+  `ClassNotFoundException`；`COMPAT` 表示跟随系统原生编码，Linux/macOS 行为不变。
 - 构建：`./gradlew assembleDebug`（带抓包/调试命令）或 `./gradlew assembleRelease`（不混淆，仅裁剪）。
 - 单元测试：`./gradlew testDebugUnitTest`（含 Robolectric + Roborazzi 截图测试）。
 - 签名：仓库不带任何签名材料。在仓库根放自己的 `keystore.properties`（`storeFile` / `storePassword` / `keyAlias` / `keyPassword`）即用你的 key；
